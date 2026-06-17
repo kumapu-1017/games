@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲーム一覧</title>
+  <style>
+    :root {
+      --bg: #0f1226;
+      --card: #1b1f3b;
+      --accent: #5eead4;
+      --text: #e6e9ff;
+      --muted: #9aa3d0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: radial-gradient(circle at 30% 20%, #232a5c 0%, var(--bg) 60%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px;
+    }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    .lead { color: var(--muted); margin: 0 0 32px; text-align: center; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 18px;
+      width: 100%;
+      max-width: 720px;
+    }
+    .card {
+      display: block;
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 22px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform .15s ease, border-color .15s ease;
+    }
+    .card:hover { transform: translateY(-4px); border-color: var(--accent); }
+    .card h2 { margin: 0 0 6px; font-size: 1.2rem; color: var(--accent); }
+    .card p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+    footer { margin-top: 40px; color: var(--muted); font-size: .8rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>🎮 ゲーム一覧</h1>
+  <p class="lead">ブラウザだけで遊べるミニゲーム集だよ。好きなのを選んでね！</p>
+
+  <div class="grid">
+    <a class="card" href="games/sample/">
+      <h2>もぐら叩き</h2>
+      <p>飛び出すモグラを30秒でできるだけ叩こう！ベストスコアを更新だ。</p>
+    </a>
+    <!-- 新しいゲームを追加したらここにカードを足してね -->
+  </div>
+
+  <footer>
+    Powered by GitHub Pages ·
+    <a href="https://github.com/kumapu-1017/games">ソースを見る</a>
+  </footer>
+</body>
+</html>

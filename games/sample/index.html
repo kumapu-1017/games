@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>もぐら叩き</title>
+  <style>
+    :root {
+      --bg: #0f1226;
+      --panel: #1b1f3b;
+      --accent: #5eead4;
+      --text: #e6e9ff;
+      --muted: #9aa3d0;
+      --hole: #3b2f1a;
+      --dirt: #6b4f2a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 30% 20%, #232a5c 0%, var(--bg) 60%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      user-select: none;
+    }
+    header {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    header h1 { font-size: 1.2rem; margin: 0; }
+    header a { color: var(--accent); font-size: .85rem; text-decoration: none; }
+
+    .hud {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 12px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat .label { font-size: .72rem; color: var(--muted); letter-spacing: .04em; }
+    .stat .value { font-size: 1.5rem; font-weight: 700; }
+    .stat .value.accent { color: var(--accent); }
+
+    .board {
+      width: 100%;
+      max-width: 480px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      aspect-ratio: 1 / 1;
+    }
+    .hole {
+      position: relative;
+      background: radial-gradient(circle at 50% 35%, var(--dirt) 0%, var(--hole) 70%);
+      border-radius: 50%;
+      overflow: hidden;
+      cursor: pointer;
+      border: 3px solid rgba(0,0,0,.35);
+    }
+    .mole {
+      position: absolute;
+      left: 12%;
+      bottom: -100%;
+      width: 76%;
+      aspect-ratio: 1 / 1;
+      border-radius: 50% 50% 45% 45%;
+      background: radial-gradient(circle at 40% 35%, #a06a3d 0%, #7a4a24 70%);
+      transition: bottom .12s ease-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+    .hole.up .mole { bottom: 6%; }
+    .hole.bonk .mole { background: radial-gradient(circle at 40% 35%, #d97a55 0%, #b9482c 70%); }
+
+    .controls { margin-top: 22px; }
+    button {
+      font: inherit;
+      font-weight: 700;
+      color: #0f1226;
+      background: var(--accent);
+      border: none;
+      border-radius: 999px;
+      padding: 12px 32px;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+    button:hover { transform: translateY(-2px); }
+    button:disabled { opacity: .5; cursor: default; transform: none; }
+
+    #message { margin-top: 16px; min-height: 1.4em; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔨 もぐら叩き</h1>
+    <a href="../../">← 一覧に戻る</a>
+  </header>
+
+  <div class="hud">
+    <div class="stat"><div class="label">スコア</div><div class="value" id="score">0</div></div>
+    <div class="stat"><div class="label">のこり</div><div class="value" id="time">30</div></div>
+    <div class="stat"><div class="label">ベスト</div><div class="value accent" id="best">0</div></div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="controls">
+    <button id="startBtn">スタート</button>
+  </div>
+  <div id="message">モグラが出たらすばやくクリック！</div>
+
+  <script>
+    (function () {
+      const HOLES = 9;
+      const GAME_SECONDS = 30;
+      const BEST_KEY = 'sample_whackamole_best';
+
+      const boardEl = document.getElementById('board');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const bestEl = document.getElementById('best');
+      const startBtn = document.getElementById('startBtn');
+      const messageEl = document.getElementById('message');
+
+      let holes = [];
+      let score = 0;
+      let timeLeft = GAME_SECONDS;
+      let playing = false;
+      let activeIndex = -1;
+      let popTimer = null;
+      let countdownTimer = null;
+
+      // 穴を生成
+      for (let i = 0; i < HOLES; i++) {
+        const hole = document.createElement('div');
+        hole.className = 'hole';
+        const mole = document.createElement('div');
+        mole.className = 'mole';
+        mole.textContent = '🐹';
+        hole.appendChild(mole);
+        hole.addEventListener('click', () => whack(i));
+        boardEl.appendChild(hole);
+        holes.push(hole);
+      }
+
+      function getBest() {
+        const v = Number(localStorage.getItem(BEST_KEY));
+        return Number.isFinite(v) && v > 0 ? v : 0;
+      }
+      function renderBest() {
+        bestEl.textContent = String(getBest());
+      }
+
+      function hideAll() {
+        holes.forEach(h => h.classList.remove('up', 'bonk'));
+        activeIndex = -1;
+      }
+
+      function popMole() {
+        if (!playing) return;
+        hideAll();
+        // 直前と違う穴を選ぶ
+        let next;
+        do { next = Math.floor(Math.random() * HOLES); } while (next === activeIndex && HOLES > 1);
+        activeIndex = next;
+        holes[next].classList.add('up');
+        // 0.6〜1.1秒で引っ込めて次へ（時間経過で少し速くなる）
+        const speed = Math.max(450, 1100 - (GAME_SECONDS - timeLeft) * 18);
+        const visible = speed * (0.6 + Math.random() * 0.4);
+        popTimer = setTimeout(popMole, visible);
+      }
+
+      function whack(i) {
+        if (!playing) return;
+        if (i !== activeIndex) return;       // 出てない穴は無効
+        if (holes[i].classList.contains('bonk')) return; // 二重ヒット防止
+        score++;
+        scoreEl.textContent = String(score);
+        holes[i].classList.add('bonk');
+        holes[i].classList.remove('up');
+        activeIndex = -1;
+      }
+
+      function tick() {
+        timeLeft--;
+        timeEl.textContent = String(timeLeft);
+        if (timeLeft <= 0) endGame();
+      }
+
+      function startGame() {
+        score = 0;
+        timeLeft = GAME_SECONDS;
+        playing = true;
+        scoreEl.textContent = '0';
+        timeEl.textContent = String(GAME_SECONDS);
+        messageEl.textContent = 'いけーっ！';
+        startBtn.disabled = true;
+        startBtn.textContent = 'プレイ中…';
+        hideAll();
+        popMole();
+        countdownTimer = setInterval(tick, 1000);
+      }
+
+      function endGame() {
+        playing = false;
+        clearTimeout(popTimer);
+        clearInterval(countdownTimer);
+        hideAll();
+        startBtn.disabled = false;
+        startBtn.textContent = 'もう一回';
+
+        const best = getBest();
+        if (score > best) {
+          localStorage.setItem(BEST_KEY, String(score));
+          messageEl.textContent = `🎉 自己ベスト更新！ スコア ${score}`;
+        } else {
+          messageEl.textContent = `おしまい！ スコア ${score}`;
+        }
+        renderBest();
+      }
+
+      startBtn.addEventListener('click', startGame);
+      renderBest();
+    })();
+  </script>
+</body>
+</html>
