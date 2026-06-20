@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Archer Lane</title>
+  <style>
+    :root {
+      --bg: #0f1226;
+      --panel: #1b1f3b;
+      --accent: #5eead4;
+      --warn: #fb7185;
+      --good: #86efac;
+      --gold: #fde047;
+      --text: #e6e9ff;
+      --muted: #9aa3d0;
+      --grass: #3b6b3a;
+      --grass2: #2f5a30;
+      --path: #c4a673;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 30% 20%, #232a5c 0%, var(--bg) 60%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+      touch-action: none;
+    }
+    header {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    header h1 { font-size: 1.05rem; margin: 0; }
+    header a { color: var(--accent); font-size: .85rem; text-decoration: none; }
+    .hud {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .stat {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .stat .label { display: block; font-size: .65rem; color: var(--muted); }
+    .stat .value { font-size: 1rem; font-weight: bold; color: var(--accent); }
+    .stat.hp .value { color: var(--good); }
+    .stat.lvl .value { color: var(--gold); }
+    .stage-wrap {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--grass);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      touch-action: none;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: rgba(15,18,38,.88);
+      border-radius: 12px;
+      text-align: center;
+      padding: 18px;
+    }
+    .overlay.show { display: flex; }
+    .overlay h2 { margin: 0; font-size: 1.3rem; }
+    .overlay p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.5; }
+    .overlay .big {
+      font-size: 1.8rem;
+      color: var(--accent);
+      font-weight: bold;
+    }
+    button {
+      background: var(--accent);
+      color: #0f1226;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: .95rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+    .reward-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 440px;
+    }
+    .reward-card {
+      background: linear-gradient(180deg, #2b2347 0%, #1b1f3b 100%);
+      border: 2px solid #6b5b94;
+      border-radius: 12px;
+      padding: 10px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform .12s ease, border-color .12s ease;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .8rem;
+    }
+    .reward-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    .reward-card .icon { font-size: 1.8rem; margin-bottom: 4px; }
+    .reward-card .name { font-weight: bold; color: var(--gold); margin-bottom: 4px; font-size: .85rem; }
+    .reward-card .desc { color: var(--good); font-size: .72rem; line-height: 1.3; }
+    .reward-card .stars { color: var(--gold); letter-spacing: 2px; font-size: .75rem; margin-bottom: 4px; }
+    .reward-card[data-rarity="2"] { border-color: #5eead4; }
+    .reward-card[data-rarity="3"] { border-color: var(--gold); box-shadow: 0 0 12px rgba(253,224,71,.3); }
+    .hint {
+      margin-top: 8px;
+      max-width: 480px;
+      color: var(--muted);
+      font-size: .75rem;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .builds {
+      width: 100%;
+      max-width: 480px;
+      margin-top: 6px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 6px 8px;
+      min-height: 28px;
+      font-size: .72rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .builds strong { color: var(--accent); }
+    .build-tag {
+      display: inline-block;
+      background: rgba(94,234,212,.12);
+      border: 1px solid rgba(94,234,212,.3);
+      color: var(--accent);
+      padding: 1px 6px;
+      margin: 1px 2px;
+      border-radius: 6px;
+      font-size: .7rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏹 Archer Lane</h1>
+    <a href="../../">← 一覧へ</a>
+  </header>
+
+  <div class="hud">
+    <div class="stat hp"><span class="label">HP</span><span class="value" id="hudHp">100</span></div>
+    <div class="stat lvl"><span class="label">エリア</span><span class="value" id="hudArea">1</span></div>
+    <div class="stat"><span class="label">スコア</span><span class="value" id="hudScore">0</span></div>
+    <div class="stat"><span class="label">コイン</span><span class="value" id="hudCoin">0</span></div>
+  </div>
+
+  <div class="stage-wrap">
+    <canvas id="game" width="420" height="640"></canvas>
+    <div class="overlay show" id="overlayStart">
+      <h2>Archer Lane</h2>
+      <p>自動で前に進んで矢を撃つよ。<br>降ってくる<strong>ゲート</strong>を左右に動いて選んでね！<br>取り損ねるとスキルは消えるよ。</p>
+      <p style="font-size:.75rem">操作: 左右ドラッグ / ← → / A・D</p>
+      <button id="btnStart">スタート</button>
+    </div>
+    <div class="overlay" id="overlayReward">
+      <h2 id="rewardTitle">🎁 賞を選んでください</h2>
+      <div class="reward-grid" id="rewardGrid"></div>
+      <p style="font-size:.7rem">クリックで獲得</p>
+    </div>
+    <div class="overlay" id="overlayEnd">
+      <h2 id="endTitle">ゲームオーバー</h2>
+      <div class="big" id="endScore">0</div>
+      <p id="endSub"></p>
+      <button id="btnRetry">もう一度</button>
+    </div>
+  </div>
+
+  <div class="builds" id="builds"><strong>ビルド:</strong> <span id="buildList">まだ何も取得していないよ</span></div>
+  <p class="hint">降ってくる<strong style="color:var(--good)">ゲート</strong>を選択（左右移動のみ）、ボス撃破で <strong style="color:var(--gold)">装備</strong>！</p>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
