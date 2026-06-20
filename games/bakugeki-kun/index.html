@@ -24,10 +24,10 @@
   .wslot.bad{border-color:var(--red);color:var(--red);background:rgba(255,77,106,.1)}
   .wlv{display:flex;align-items:center;gap:3px;margin-left:2px}
   .wlv .lvnum{font-size:12px;font-weight:800;color:var(--gold)}
-  .wlv .lvbar{display:flex;gap:1.5px}
-  .wlv .seg{width:5px;height:11px;border-radius:1px;background:#22344e}
-  .wlv .seg.on{background:var(--gold)}
-  .wlv .seg.max{background:#ff8aff;box-shadow:0 0 5px #ff8aff}
+  .wlv .lvbar{display:flex;gap:2px}
+  .wlv .seg{width:9px;height:11px;border-radius:2px;background:#22344e;transition:background .15s ease,box-shadow .15s ease}
+  .wlv .seg.on{background:var(--gold);box-shadow:0 0 4px rgba(255,210,61,.5)}
+  .wlv .seg.max{background:#ff8aff;box-shadow:0 0 6px #ff8aff}
   .badge{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:800;margin-left:auto;white-space:nowrap}
   .badge .pw{color:#ff9f43} .badge .op{color:#6effe0} .badge .sp{color:#8affff}
   #wrap{position:relative;flex:1;width:100%;display:flex;align-items:center;justify-content:center}
@@ -475,7 +475,19 @@ class Game{
     if(!this.freyUnlocked&&st.total>=250000&&typeof unlockFrey==='function'){
       unlockFrey(false);this.toast('条件達成! フレイ解放','#ffe88a');if(typeof SFX!=='undefined'&&SFX.clear)SFX.clear();}}
 
-  curWeapon(){const fam=this.char.fam;const lv=this.wlv;let base,phase;
+  /* テーブル内サブインデックス(=武器パラメータが切り替わる単位)。lvが切り替わるたびに番号が変わる */
+  weaponSubIdx(lv){const fam=this.char.fam;
+    const full=this.char.divine?ULT[this.char.id]:(this.char.fullTable?FULL[this.char.id]:null);
+    if(full)return Math.min(full.length-1,Math.floor((lv-1)/3));
+    if(lv<=16)return Math.min(FAM_TIERS[fam].length-1,Math.floor((lv-1)*FAM_TIERS[fam].length/16));
+    if(lv<=19)return 100;
+    if(lv<=22)return 101;
+    return 102;}
+  /* このLvで武器テーブルが切り替わるか(=「進化」演出対象Lvか) */
+  isEvolveLv(lv){if(lv<=1)return true;return this.weaponSubIdx(lv)!==this.weaponSubIdx(lv-1);}
+  /* テーブル切替Lvからの相対位置(0,1,2,...)。ベース名へのローマ数字接尾辞用 */
+  weaponSubStep(lv){let step=0;for(let l=lv;l>=1;l--){if(this.isEvolveLv(l))break;step++;}return step;}
+  curWeapon(lv){const fam=this.char.fam;lv=lv||this.wlv;let base,phase;
     const full=this.char.divine?ULT[this.char.id]:(this.char.fullTable?FULL[this.char.id]:null);
     if(full){const idx=Math.min(full.length-1,Math.floor((lv-1)/3));base=Object.assign({},full[idx]);phase=this.char.divine?'divine':'full';}
     else if(lv<=16){const fi=Math.min(FAM_TIERS[fam].length-1,Math.floor((lv-1)*FAM_TIERS[fam].length/16));base=Object.assign({},FAM_TIERS[fam][fi]);phase='common';}
@@ -489,9 +501,25 @@ class Game{
     base.n=(base.n||1)+Math.floor((lv-1)/7);
     const nm=WNAMES[this.char.id];
     if(nm&&nm[lv-1])base.name=nm[lv-1];
+    else{
+      /* テーブル切替で名前更新が無いLvは、ベース名にローマ数字を付与してLv差を可視化 */
+      const step=this.weaponSubStep(lv);
+      if(step>0){const roman=['','II','III','IV','V'][Math.min(4,step)];if(base.name)base.name=base.name+' '+roman;}
+    }
+    /* 色進化:
+       Lv1-22   武器固有色を維持(キャラ識別)
+       Lv23-29  動的レインボーオーラを乗せる(_rainbowLv: Lv23=0.18 → Lv29=0.85)。
+                武器色の弾と虹色の弾が混在し、Lvが進むほど虹比率が上がる
+       Lv30     完全レインボー(rainbow=true、武器色は捨てる) */
+    if(lv>=23&&!base.rainbow){
+      base._rainbowLv=Math.min(0.9,0.18+(lv-23)*0.12);/* Lv23=0.18, Lv29=0.9 */
+      if(lv>=30){base.rainbow=true;base._rainbowLv=1;}/* Lv30で完全レインボー化 */
+    }
     const special=this.char.divine||this.char.valk||this.char.magni||this.char.frey;
     if(!special&&base.beam&&lv<25)base.beam=false;
-    base._lv=lv;base._phase=phase;base._tier=ti;return base;}
+    base._lv=lv;base._phase=phase;base._tier=ti;
+    base._subIdx=this.weaponSubIdx(lv);base._evolves=this.isEvolveLv(lv);
+    return base;}
   isUlt(){return this.wlv>=23;}
   isMax(){return this.wlv>=30;}
   orbsNeed(lv){return 3+lv;}
@@ -562,8 +590,10 @@ class Game{
 
   refreshWBar(){const w=this.curWeapon();const fam=this.char.fam;
     const icon=this.isUlt()?'\u2605':FAM_ICON[fam];const ult=this.isUlt();const mx=this.isMax();
-    const filled=Math.ceil(this.wlv/3);
-    let segs='';for(let i=1;i<=10;i++){let cls='seg';if(i<=filled)cls+=(this.wlv>=23?' max':' on');segs+='<div class="'+cls+'"></div>';}
+    /* \u73fe\u30c6\u30a3\u30a2\u5185\u306e\u9032\u6357\u30925\u30de\u30b9\u3067\u8868\u793a\u3002\u6bceLv\u3067\u78ba\u5b9f\u306b1\u30de\u30b9\u9032\u3080\u3002 */
+    const ti=tierIdx(this.wlv);const inTierLv=this.wlv-ti*5;/* 1\u301c5 */
+    const filled=Math.max(1,Math.min(5,inTierLv));
+    let segs='';for(let i=1;i<=5;i++){let cls='seg';if(i<=filled)cls+=(mx?' max':' on');segs+='<div class="'+cls+'"></div>';}
     let badges='';
     if(this.powLevel>0)badges+='<span class="pw">火'+this.powLevel+'</span>';
     if(this.rateLevel>0)badges+='<span class="sp">速'+this.rateLevel+'</span>';
@@ -587,16 +617,28 @@ class Game{
     this.wlv++;this.orbsHave=0;this.orbsToNext=this.orbsNeed(this.wlv);
     const w=this.curWeapon();const ult=this.isUlt();const mx=this.isMax();
     const tIdx=tierIdx(this.wlv);const tier=TIERS[tIdx];const tierUp=tIdx>prevTier;
-    document.getElementById('lvupT').textContent=mx?'\u2605 MAX \u2728\u8679\u8f1d\u2728 \u2605':tierUp?('\u2605 '+tier.n+'\u968e\u5c64 '+tier.r+' \u2605'):'LEVEL UP';
-    document.getElementById('lvupT').style.color=mx?'#ff8aff':tier.c;
+    /* \u6b66\u5668\u30c6\u30fc\u30d6\u30eb\u304c\u5207\u308a\u66ff\u308f\u3063\u305fLv = \u300c\u9032\u5316\u300d(\u6319\u52d5\u304c\u5909\u308f\u308b\u672c\u683c\u7684\u306a\u5909\u5316)\u3002tierUp\u306f\u3053\u308c\u3092\u5185\u5305\u3059\u308b */
+    const evolve=!!w._evolves;
+    document.getElementById('lvupT').textContent=mx?'\u2605 MAX \u2728\u8679\u8f1d\u2728 \u2605':tierUp?('\u2605 '+tier.n+'\u968e\u5c64 '+tier.r+' \u2605'):evolve?'\u2728 \u6b66\u5668\u9032\u5316 \u2728':'LEVEL UP';
+    document.getElementById('lvupT').style.color=mx?'#ff8aff':tierUp?tier.c:evolve?w.col:'#fff';
     document.getElementById('lvupN').textContent='Lv.'+this.wlv+'  '+w.name;
     lvupEl.classList.remove('show');void lvupEl.offsetWidth;lvupEl.classList.add('show');
-    flashEl.animate([{opacity:0},{opacity:(mx?.95:tierUp?.6:.3)},{opacity:0}],{duration:mx?800:tierUp?550:280});
-    this.spark(this.me.x,this.me.y,w.col,tierUp?34:14);this.ring2(this.me.x,this.me.y,w.col);this.ring2(this.me.x,this.me.y,tier.c);
-    this.shake=Math.max(this.shake||0,mx?16:tierUp?9:4);
+    /* フラッシュ強度: MAX>ティア>進化>通常 */
+    const flashOp=mx?.95:tierUp?.6:evolve?.45:.3;
+    const flashDur=mx?800:tierUp?550:evolve?420:280;
+    flashEl.animate([{opacity:0},{opacity:flashOp},{opacity:0}],{duration:flashDur});
+    const partN=mx?34:tierUp?34:evolve?24:14;
+    this.spark(this.me.x,this.me.y,w.col,partN);this.ring2(this.me.x,this.me.y,w.col);
+    if(tierUp||evolve)this.ring2(this.me.x,this.me.y,tier.c);
+    if(evolve&&!tierUp)this.ring2(this.me.x,this.me.y,'#fff');
+    this.shake=Math.max(this.shake||0,mx?16:tierUp?9:evolve?6:4);
     if(tierUp){this.toast(tier.n+'階層へ! '+w.name,tier.c);
       for(let k=0;k<8;k++)setTimeout(()=>{if(game){game.ring2(game.me.x,game.me.y,k%2?'#fff':tier.c);const a=k/8*Math.PI*2;game.spark(game.me.x+Math.cos(a)*36,game.me.y+Math.sin(a)*36,tier.c,10);}},k*70);
       for(let k=0;k<10;k++)this.parts.push({x:this.me.x+(Math.random()-0.5)*60,y:this.me.y+30,vx:0,vy:-0.18-Math.random()*0.12,r:2+Math.random()*3,col:tier.c,life:600});}
+    else if(evolve){this.toast('武器進化! '+w.name,w.col);
+      /* 進化Lv専用: 武器色のリングが波紋状に広がる + 軽い粒子 */
+      for(let k=0;k<4;k++)setTimeout(()=>{if(game){game.ring2(game.me.x,game.me.y,k%2?'#fff':w.col);}},k*80);
+      for(let k=0;k<6;k++){const a=k/6*Math.PI*2;this.parts.push({x:this.me.x+Math.cos(a)*20,y:this.me.y+Math.sin(a)*20,vx:Math.cos(a)*0.18,vy:Math.sin(a)*0.18,r:2+Math.random()*2,col:w.col,life:520});}}
     if(ult&&!tierUp){for(let k=0;k<3;k++)setTimeout(()=>{if(game)game.ring2(game.me.x,game.me.y,k%2?'#fff':w.col);},k*90);}
     if(mx){for(let k=0;k<16;k++)setTimeout(()=>{if(game){const a=k/16*Math.PI*2;game.ring2(game.me.x,game.me.y,hsl(k*24,90,62));game.spark(game.me.x+Math.cos(a)*44,game.me.y+Math.sin(a)*44,hsl(k*24,95,65),9);}},k*50);}
     if(this.char&&this.char.id==='magni'&&ult){for(let k=0;k<12;k++){const a=k/12*Math.PI*2;const d=60;
@@ -787,7 +829,14 @@ class Game{
         let off=(k-(nn-1)/2);let ang=-Math.PI/2+off*(w.spread||0.12);
         if(scatter)ang+=(Math.random()-0.5)*1.7;
         const spd=w.laser?1.4:w.flame?0.5:w.wave?0.7:0.85;
-        let col=w.col;if(w.rainbow)col='hsl('+((performance.now()*0.4+k*40)%360)+',90%,65%)';
+        let col=w.col;
+        if(w.rainbow)col='hsl('+((performance.now()*0.4+k*40)%360)+',90%,65%)';
+        else if(w._rainbowLv){
+          /* Lv23+でレインボー弾を混ぜる。弾の k インデックス + 時間で位相を決め、
+             _rainbowLv 比率の弾が確実にレインボーになる。Lvが上がるほど混入比率が増す。 */
+          const slot=(k+Math.floor(now*0.012))%Math.max(2,Math.ceil(1/w._rainbowLv));
+          if(slot===0)col='hsl('+((now*0.5+k*55+off*30)%360)+',95%,62%)';
+        }
         this.bullets.push({x:sx+(nn>1?off*5:0),y:sy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
           dmg:(w.dmg||1)*powMul,col,r:(w.big?7:w.laser?3:w.flame?6:4)*lvr,laser:w.laser,
           llen:w.laser?(7+Math.min(20,(this.wlv-1)*0.9)):0,
