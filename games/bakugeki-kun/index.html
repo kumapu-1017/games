@@ -84,6 +84,8 @@
   .lock{opacity:.55;position:relative}
   .lockTag{position:absolute;top:6px;right:8px;font-size:9px;font-weight:800;color:#ffd23d;border:1px solid #ffd23d;border-radius:7px;padding:1px 5px}
   .valk{border-color:#ff8aff!important;background:rgba(255,138,255,.1)!important;box-shadow:0 0 14px rgba(255,138,255,.3)}
+  #verBadge{font-size:10px;font-weight:800;color:#8affff;letter-spacing:.08em;font-family:monospace;
+    padding:2px 8px;border:1px solid #2a5a6a;border-radius:9px;background:rgba(10,20,40,.55);margin-top:-4px}
 </style>
 </head>
 <body>
@@ -111,6 +113,7 @@
 
   <div class="panel" id="overlay">
     <div class="big">爆撃君</div>
+    <div id="verBadge">v0.2.1</div>
     <div class="sub">指で動かす。撃つのは自動。<br><b class="g">進化玉</b>で武器がLv30まで進化(毎レベル名前が変わる)。<br>撃破で<b class="g">必殺ゲージ</b>が溜まる。最大3本まで溜めて撃つほど大技に。<br>各地のキモボスを倒せ。</div>
     <div style="font-size:11px;color:#ffd23d;font-weight:800">▼ キャラを選ぶ ▼</div>
     <div id="charPick" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;padding:0 8px;max-width:480px;max-height:34vh;overflow-y:auto"></div>
@@ -151,6 +154,9 @@
 <div id="hint">指で<b>爆撃君</b>を動かす。撃つのは自動。<b>進化玉</b>で武器がLv30まで成長、<b>必殺</b>ゲージ満タンで必殺技、各地のキモボスを倒せ。</div>
 
 <script>
+const APP_VERSION='0.2.1';
+const verBadgeEl=document.getElementById('verBadge');
+if(verBadgeEl)verBadgeEl.textContent='v'+APP_VERSION;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const hpEl=document.getElementById('hp'),scoreV=document.getElementById('scoreV'),overlay=document.getElementById('overlay');
 const stageTag=document.getElementById('stageTag'),flashEl=document.getElementById('flash'),toastEl=document.getElementById('toast');
