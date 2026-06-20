@@ -8,6 +8,12 @@ Kiro-style Spec-Driven Development on an agentic SDLC
 - Steering: `.kiro/steering/`
 - Specs: `.kiro/specs/`
 
+### Deployment
+- デプロイ手順は **`DEPLOY.md` にコード化されている**。手動でPagesの設定を変えたり、独自の手順を提案しないこと。
+- `git push` がデプロイをトリガー（`.github/workflows/pages.yml` が自動実行）。
+- push前チェックは `scripts/preflight.sh`（pre-pushフックで自動実行）。
+- clone直後は `./scripts/setup-repo.sh` を1回だけ実行。
+
 ### Steering vs Specification
 
 **Steering** (`.kiro/steering/`) - Guide AI with project-wide rules and context
