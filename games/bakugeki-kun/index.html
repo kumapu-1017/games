@@ -155,7 +155,7 @@
 
   <div class="panel" id="overlay">
     <div class="big">爆撃君</div>
-    <div id="verBadge">v0.4.0</div>
+    <div id="verBadge">v0.5.0</div>
     <div class="sub">指で動かす。撃つのは自動。<br>撃破で<b style="color:#ffe14d">mia</b>(通貨)が手に入る。<br>ステージクリア毎の<b class="g">強化画面</b>でmiaを使い、HP・威力・武器Lv・連射・移動を強化。<br>少しずつ強くなって各地のキモボスを倒せ。</div>
     <div style="font-size:11px;color:#ffd23d;font-weight:800">▼ キャラを選ぶ ▼</div>
     <div id="charPick" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;padding:0 8px;max-width:480px;max-height:34vh;overflow-y:auto"></div>
@@ -192,6 +192,16 @@
     <button class="go" onclick="game.reviveGo()">戦線復帰</button>
   </div>
 
+  <!-- GO後ランダム強化(再挑戦支援) -->
+  <div class="panel hide" id="reviveUpgScreen">
+    <div class="big" style="color:#ffd23d">復活の支援物資</div>
+    <div class="sub" id="reviveUpgInfo">所持miaから払って強化を1つ選べる。<br>選ばなかったmiaと強化はそのまま次回に持ち越し。</div>
+    <div id="reviveUpgList" style="display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);max-height:48vh;overflow-y:auto;padding:6px 4px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="go" onclick="game.reviveUpgSkip()">取らずに再発進</button>
+    </div>
+  </div>
+
   <div id="releaseScreen">
     <div class="helpHead">
       <div class="ht">更新履歴</div>
@@ -217,7 +227,7 @@
 <div id="hint">指で<b>爆撃君</b>を動かす。撃つのは自動。撃破で<b>mia</b>を集め、クリア毎に<b>強化</b>。<b>必殺</b>ゲージ満タンで必殺技、各地のキモボスを倒せ。</div>
 
 <script>
-const APP_VERSION='0.4.0';
+const APP_VERSION='0.5.0';
 const verBadgeEl=document.getElementById('verBadge');
 if(verBadgeEl)verBadgeEl.textContent='v'+APP_VERSION;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
@@ -484,27 +494,29 @@ const STAGES=[
   {name:'真の最果て',sky:['#000005','#2a0a3a'], ground:'#000003', terra:['singularity','timefrag','allstar'],   space:true, diff:5.5, boss:'final'},
 ];
 
+/* move: sine(横正弦) / hover(緩やかに上下左右) / dash(突進と停止) / teleport(瞬間移動) / orbit(円運動) / pendulum(振り子) / chase(プレイヤー追尾) / drift(ゆらぎ) */
+/* entry: drop(降下) / fadein(透明から) / warp(瞬間出現+衝撃) / quake(画面振動と共に降下) */
 const BOSSES={
-  neon:   {name:'メガアイ看板',  body:'#ff4da0',blotch:'#b02a6a',eyes:1,mouth:'teeth', extra:'neon',     shape:'geo',  pool:[0,1],        hp:1.4},
-  badland:{name:'スナムシ',      body:'#c8a050',blotch:'#8a6a2a',eyes:2,mouth:'gape',  extra:'segments', shape:'tall', pool:[0,1,4],      hp:1.55},
-  sea:    {name:'ヌメクラゲ',    body:'#5ad8d0',blotch:'#2a8a8a',eyes:3,mouth:'tongue',extra:'tentacles',shape:'blob', pool:[0,2,1],      hp:1.7},
-  body:   {name:'ドクシンゾウ',  body:'#d0466a',blotch:'#8a2a44',eyes:2,mouth:'gape',  extra:'veins',    shape:'wide', pool:[1,3,4],      hp:1.9},
-  france: {name:'トロケマカロン',body:'#f0a0c0',blotch:'#c06a90',eyes:2,mouth:'tongue',extra:'drip',     shape:'wide', pool:[0,2,3],      hp:2.1},
-  china:  {name:'リュウノナマクビ',body:'#e0c040',blotch:'#a07a20',eyes:2,mouth:'teeth',extra:'horns',  shape:'tall', pool:[2,3,1,4],    hp:2.4},
-  rpg:    {name:'キングヘドロ',  body:'#7ad86a',blotch:'#3a8a2a',eyes:2,mouth:'gape',  extra:'crown',    shape:'blob', pool:[3,4,5,8],    hp:2.7},
-  retrojp:{name:'クチサケ妖怪',  body:'#e0d8c8',blotch:'#9a8a7a',eyes:2,mouth:'teeth', extra:'hair',     shape:'ghost',pool:[1,4,5,6],    hp:3.0},
-  alien:  {name:'ショッカク星人',body:'#a06aff',blotch:'#6a2aaa',eyes:5,mouth:'gape',  extra:'tentacles',shape:'multi',pool:[2,3,5,7,8],  hp:3.4},
-  space:  {name:'バイオ母脳',    body:'#ff7a9a',blotch:'#aa3a5a',eyes:2,mouth:'teeth', extra:'brain',    shape:'blob', pool:[5,6,7,3,4,9],hp:4.0},
-  abyss:  {name:'シンカイヌシ',  body:'#1a6a8a',blotch:'#0a3a4a',eyes:5,mouth:'teeth', extra:'tentacles',shape:'wide', pool:[2,5,7,3,8],  hp:4.5},
-  inferno:{name:'ゴウカノオニ',  body:'#e0421a',blotch:'#8a1a0a',eyes:3,mouth:'teeth', extra:'horns',    shape:'tall', pool:[4,5,6,1,9],  hp:5.0},
-  cyber:  {name:'マザーコア',    body:'#2aff8a',blotch:'#0a8a4a',eyes:5,mouth:'gape',  extra:'neon',     shape:'geo',  pool:[5,6,7,3,4,8],hp:5.5},
-  void:   {name:'トキノハテ',    body:'#b06bff',blotch:'#5a2a8a',eyes:5,mouth:'teeth', extra:'brain',    shape:'multi',pool:[5,6,7,3,4,1,9],hp:6.5},
-  heaven: {name:'テンシノナレハテ',body:'#f0e8d0',blotch:'#c0a878',eyes:3,mouth:'tongue',extra:'hair',   shape:'ghost',pool:[2,3,5,6,8],  hp:7.0},
-  zero:   {name:'ムノカイ',      body:'#8a8a8a',blotch:'#3a3a3a',eyes:2,mouth:'teeth', extra:'segments', shape:'geo',  pool:[5,6,7,4,9],  hp:7.5},
-  omega:  {name:'メツボウノホシ',body:'#e85a2a',blotch:'#8a2a0a',eyes:3,mouth:'gape',  extra:'horns',    shape:'blob', pool:[4,5,6,7,1,9],hp:8.0},
-  genesis:{name:'ウミノハハ',    body:'#3aa8e0',blotch:'#1a5a8a',eyes:5,mouth:'tongue',extra:'tentacles',shape:'wide', pool:[2,3,5,6,7,8],hp:8.5},
-  divine: {name:'月曜日の使者',  body:'#c0a8f0',blotch:'#7a5ab0',eyes:5,mouth:'teeth', extra:'crown',    shape:'tall', pool:[5,6,7,3,4,2,8],hp:9.0},
-  final:  {name:'連休明けの月曜日の使者',body:'#ff5ad0',blotch:'#7a1a6a',eyes:5,mouth:'teeth',extra:'brain',shape:'multi',pool:[9,5,6,7,3,4,1,2,8],hp:10.0},
+  neon:   {name:'メガアイ看板',  body:'#ff4da0',blotch:'#b02a6a',eyes:1,mouth:'teeth', extra:'neon',     shape:'geo',  pool:[0,1,10],          hp:1.4, move:'sine',     entry:'drop'},
+  badland:{name:'スナムシ',      body:'#c8a050',blotch:'#8a6a2a',eyes:2,mouth:'gape',  extra:'segments', shape:'tall', pool:[0,1,4,11],        hp:1.55,move:'hover',    entry:'quake'},
+  sea:    {name:'ヌメクラゲ',    body:'#5ad8d0',blotch:'#2a8a8a',eyes:3,mouth:'tongue',extra:'tentacles',shape:'blob', pool:[0,2,1,12],        hp:1.7, move:'drift',    entry:'fadein'},
+  body:   {name:'ドクシンゾウ',  body:'#d0466a',blotch:'#8a2a44',eyes:2,mouth:'gape',  extra:'veins',    shape:'wide', pool:[1,3,4,13],        hp:1.9, move:'pendulum', entry:'drop'},
+  france: {name:'トロケマカロン',body:'#f0a0c0',blotch:'#c06a90',eyes:2,mouth:'tongue',extra:'drip',     shape:'wide', pool:[0,2,3,14],        hp:2.1, move:'sine',     entry:'fadein'},
+  china:  {name:'リュウノナマクビ',body:'#e0c040',blotch:'#a07a20',eyes:2,mouth:'teeth',extra:'horns',  shape:'tall', pool:[2,3,1,4,15],      hp:2.4, move:'dash',     entry:'quake'},
+  rpg:    {name:'キングヘドロ',  body:'#7ad86a',blotch:'#3a8a2a',eyes:2,mouth:'gape',  extra:'crown',    shape:'blob', pool:[3,4,5,8,11],      hp:2.7, move:'hover',    entry:'drop'},
+  retrojp:{name:'クチサケ妖怪',  body:'#e0d8c8',blotch:'#9a8a7a',eyes:2,mouth:'teeth', extra:'hair',     shape:'ghost',pool:[1,4,5,6,16],      hp:3.0, move:'teleport', entry:'fadein'},
+  alien:  {name:'ショッカク星人',body:'#a06aff',blotch:'#6a2aaa',eyes:5,mouth:'gape',  extra:'tentacles',shape:'multi',pool:[2,3,5,7,8,17],    hp:3.4, move:'orbit',    entry:'warp'},
+  space:  {name:'バイオ母脳',    body:'#ff7a9a',blotch:'#aa3a5a',eyes:2,mouth:'teeth', extra:'brain',    shape:'blob', pool:[5,6,7,3,4,9,18],  hp:4.0, move:'chase',    entry:'drop'},
+  abyss:  {name:'シンカイヌシ',  body:'#1a6a8a',blotch:'#0a3a4a',eyes:5,mouth:'teeth', extra:'tentacles',shape:'wide', pool:[2,5,7,3,8,12],    hp:4.5, move:'drift',    entry:'fadein'},
+  inferno:{name:'ゴウカノオニ',  body:'#e0421a',blotch:'#8a1a0a',eyes:3,mouth:'teeth', extra:'horns',    shape:'tall', pool:[4,5,6,1,9,15],    hp:5.0, move:'dash',     entry:'quake'},
+  cyber:  {name:'マザーコア',    body:'#2aff8a',blotch:'#0a8a4a',eyes:5,mouth:'gape',  extra:'neon',     shape:'geo',  pool:[5,6,7,3,4,8,10],  hp:5.5, move:'orbit',    entry:'warp'},
+  void:   {name:'トキノハテ',    body:'#b06bff',blotch:'#5a2a8a',eyes:5,mouth:'teeth', extra:'brain',    shape:'multi',pool:[5,6,7,3,4,1,9,16],hp:6.5, move:'teleport', entry:'warp'},
+  heaven: {name:'テンシノナレハテ',body:'#f0e8d0',blotch:'#c0a878',eyes:3,mouth:'tongue',extra:'hair',   shape:'ghost',pool:[2,3,5,6,8,19],    hp:7.0, move:'drift',    entry:'fadein'},
+  zero:   {name:'ムノカイ',      body:'#8a8a8a',blotch:'#3a3a3a',eyes:2,mouth:'teeth', extra:'segments', shape:'geo',  pool:[5,6,7,4,9,18],    hp:7.5, move:'pendulum', entry:'drop'},
+  omega:  {name:'メツボウノホシ',body:'#e85a2a',blotch:'#8a2a0a',eyes:3,mouth:'gape',  extra:'horns',    shape:'blob', pool:[4,5,6,7,1,9,13],  hp:8.0, move:'chase',    entry:'quake'},
+  genesis:{name:'ウミノハハ',    body:'#3aa8e0',blotch:'#1a5a8a',eyes:5,mouth:'tongue',extra:'tentacles',shape:'wide', pool:[2,3,5,6,7,8,14],  hp:8.5, move:'orbit',    entry:'fadein'},
+  divine: {name:'月曜日の使者',  body:'#c0a8f0',blotch:'#7a5ab0',eyes:5,mouth:'teeth', extra:'crown',    shape:'tall', pool:[5,6,7,3,4,2,8,17],hp:9.0, move:'teleport', entry:'warp'},
+  final:  {name:'連休明けの月曜日の使者',body:'#ff5ad0',blotch:'#7a1a6a',eyes:5,mouth:'teeth',extra:'brain',shape:'multi',pool:[9,5,6,7,3,4,1,2,8,10,16,19],hp:10.0,move:'chase',    entry:'warp'},
 };
 
 const SPECIALS={
@@ -655,8 +667,21 @@ class Game{
     /* ===== mia通貨システム ===== */
     this.mia=0;/* 所持通貨 */
     /* 強化レベル(ステージクリア毎の強化画面で上げる) */
-    this.upg={hp:0,power:0,wlv:0,rate:0,speed:0};
+    this.upg={hp:0,power:0,wlv:0,rate:0,speed:0,recover:0};
+    /* === GO跨ぎ持ち越し: 前回保存の mia/upg を引き継いで即消費 === */
+    const carry=this.loadMeta();
+    if(carry){
+      if(typeof carry.mia==='number')this.mia=Math.max(0,carry.mia|0);
+      if(carry.upg&&typeof carry.upg==='object'){
+        for(const k of ['hp','power','wlv','rate','speed','recover']){
+          if(typeof carry.upg[k]==='number')this.upg[k]=Math.max(0,carry.upg[k]|0);
+        }
+      }
+      if(this.mia>0||Object.values(this.upg).some(v=>v>0))this.toast('持ち越し: ◈ '+this.mia+' mia / 強化適用','#ffd23d');
+      this.clearMeta();
+    }
     this.applyUpgrades();/* 強化を反映 */
+    if(this.hp==null||this.hp<=0||this.hp>this.maxhp)this.hp=this.maxhp;this.updHP();
     this.powLevel=0;this.rateLevel=0;
     this.optCount=0;this.optTimers=[];this.trail=[];
     this.bullets=[];this.ebullets=[];this.enemies=[];this.drops=[];this.parts=[];this.clouds=[];this.terrain=[];this.dmgNums=[];
@@ -756,6 +781,8 @@ class Game{
       cost:lv=>30+lv*28, effect:lv=>'連射 +'+(lv*12)+'%'},
     {key:'speed',icon:'👟',name:'移動速度', desc:'自機の移動が速くなり避けやすい',max:6,
       cost:lv=>35+lv*30, effect:lv=>'移動 +'+(lv*10)+'%'},
+    {key:'recover',icon:'🩹',name:'回復力', desc:'回復アイテム取得時のHP回復量が増える',max:6,
+      cost:lv=>28+lv*24, effect:lv=>'回復 +'+lv},
   ];}
   upgCost(key){const def=this.upgradeDefs().find(d=>d.key===key);const lv=this.upg[key]||0;
     if(lv>=def.max)return null;return def.cost(lv);}
@@ -893,9 +920,16 @@ class Game{
   spawnBoss(){this.bossDone=true;const st=STAGES[this.stage];const cfg=BOSSES[st.boss];
     /* ボスHP増量: より歯ごたえのある長期戦に */
     const hp=(260+this.stage*130+this.score*0.16)*cfg.hp;
-    this.boss={x:W/2,y:-100,r:54,hp:hp,maxhp:hp,spd:0.025,fireT:500,t:0,cfg:cfg,
+    const entry=cfg.entry||'drop';
+    const startY=(entry==='warp')?94:-100;
+    const startAlpha=(entry==='fadein')?0:1;
+    this.boss={x:W/2,y:startY,r:54,hp:hp,maxhp:hp,spd:0.025,fireT:500,t:0,cfg:cfg,
       pool:cfg.pool.slice(),pi:0,shotsLeft:this.patternShots(cfg.pool[0]),spin:0,spiral:0,
-      entering:true,targetY:94,phase:0,iframe:0};
+      entering:true,targetY:94,phase:0,iframe:0,
+      move:cfg.move||'sine',entry:entry,alpha:startAlpha,
+      tpT:0,dashT:0,dashing:false,dashVx:0,dashVy:0,baseX:W/2};
+    if(entry==='warp'){this.shake=Math.max(this.shake||0,18);flashEl.animate([{opacity:0},{opacity:.85},{opacity:0}],{duration:380});this.ring2(W/2,94,'#fff');this.spark(W/2,94,cfg.body,32);}
+    if(entry==='quake'){this.shake=Math.max(this.shake||0,10);}
     this.toast(cfg.name+' 接近!','#ff3d6e');SFX.bossAppear();
     startMusic(this.stage,true);}
   bossPhase(b){b.phase++;b.iframe=performance.now()+800;
@@ -905,7 +939,7 @@ class Game{
     /* フェーズ移行時に弾幕増加 */
     const n=12+b.phase*3;for(let k=0;k<n;k++){const a=k/n*Math.PI*2;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*0.22,vy:Math.sin(a)*0.22,dmg:2,boss:true});}
     for(let i=0;i<3+b.phase;i++)this.spawnEnemy();}
-  patternShots(id){return [3,6,4,24,3,30,8,12,4,3][id]||4;}
+  patternShots(id){return [3,6,4,24,3,30,8,12,4,3, 5,6,8,3,10,2,1,6,4,3][id]||4;}
   loop(t){if(!this.running)return;const dt=Math.min(40,t-this.lastT);this.lastT=t;
     try{this.update(dt);this.draw();}catch(e){}
     requestAnimationFrame(tt=>this.loop(tt));}
@@ -1298,7 +1332,7 @@ class Game{
     /* ガチャ開封の等級演出: レアほど脳汁 */
     if(d.gacha&&d.rank){this.gachaReveal(d.rank);}
     const kind=d.kind;const now=performance.now();
-    if(kind==='heal'){flashEl.animate([{opacity:0},{opacity:.3},{opacity:0}],{duration:200});this.hp=Math.min(this.maxhp,this.hp+1);this.updHP();SFX.heal();this.toast('回復+1','#6eff7a');return;}
+    if(kind==='heal'){flashEl.animate([{opacity:0},{opacity:.3},{opacity:0}],{duration:200});const amt=1+((this.upg&&this.upg.recover)||0);this.hp=Math.min(this.maxhp,this.hp+amt);this.updHP();SFX.heal();this.toast('回復+'+amt,'#6eff7a');return;}
     if(kind==='fullheal'){flashEl.animate([{opacity:0},{opacity:.3},{opacity:0}],{duration:200});this.hp=this.maxhp;this.updHP();SFX.heal();this.toast('全回復','#6eff7a');return;}
     if(kind==='shield'){flashEl.animate([{opacity:0},{opacity:.3},{opacity:0}],{duration:200});this._inv=performance.now()+5000;SFX.good();this.toast('5秒無敵','#6effe0');return;}
     if(kind==='double'){flashEl.animate([{opacity:0},{opacity:.3},{opacity:0}],{duration:200});this.scoreMul=2;this.scoreMulT=performance.now()+8000;SFX.good();this.toast('スコア×2','#ffd23d');return;}
@@ -1378,11 +1412,80 @@ class Game{
   nearestEnemy(x,y){let best=null,bd=1e9;for(const e of this.enemies){const d=(e.x-x)**2+(e.y-y)**2;if(d<bd){bd=d;best=e;}}if(this.boss&&!this.boss.entering){const d=(this.boss.x-x)**2+(this.boss.y-y)**2;if(d<bd)best=this.boss;}return best;}
 
   updateBoss(dt,now){const b=this.boss;b.t+=dt;const diff=STAGES[this.stage].diff||1;
-    if(b.entering){b.y+=0.045*dt;if(b.y>=b.targetY){b.y=b.targetY;b.entering=false;this.toast(b.cfg.name+' 出現!','#ff3d6e');}}
-    else{b.x=W/2+Math.sin(b.t*0.0009)*(W*0.34);/* 横移動を少し広く */
-      if(b.iframe<=now){b.fireT-=dt*(0.7+b.phase*0.28);/* 弾の間隔を広げて避けやすく */
+    if(b.entering){
+      if(b.entry==='warp'){
+        /* 瞬間出現: その場でフェードイン */
+        b.alpha=Math.min(1,(b.alpha||0)+dt*0.004);
+        if(b.alpha>=1){b.entering=false;this.toast(b.cfg.name+' 出現!','#ff3d6e');}
+      }else if(b.entry==='fadein'){
+        b.y+=0.022*dt;b.alpha=Math.min(1,(b.alpha||0)+dt*0.0015);
+        if(b.y>=b.targetY){b.y=b.targetY;b.alpha=1;b.entering=false;this.toast(b.cfg.name+' 出現!','#ff3d6e');}
+      }else if(b.entry==='quake'){
+        b.y+=0.055*dt;if(Math.random()<0.18)this.shake=Math.max(this.shake||0,4);
+        if(b.y>=b.targetY){b.y=b.targetY;b.entering=false;this.shake=Math.max(this.shake||0,14);this.toast(b.cfg.name+' 出現!','#ff3d6e');}
+      }else{
+        b.y+=0.045*dt;
+        if(b.y>=b.targetY){b.y=b.targetY;b.entering=false;this.toast(b.cfg.name+' 出現!','#ff3d6e');}
+      }
+    }
+    else{
+      /* 移動パターン: ボスごとに個性化 */
+      const me=this.me;const mv=b.move||'sine';const ampX=W*0.34;
+      if(mv==='sine'){
+        b.x=W/2+Math.sin(b.t*0.0009)*ampX;
+      }else if(mv==='hover'){
+        /* 緩やかに上下左右へ漂う */
+        b.x=W/2+Math.sin(b.t*0.0007)*ampX*0.9;
+        b.y=b.targetY+Math.sin(b.t*0.0011)*22;
+      }else if(mv==='drift'){
+        /* 8の字状にゆらぐ */
+        b.x=W/2+Math.sin(b.t*0.0010)*ampX;
+        b.y=b.targetY+Math.sin(b.t*0.0020)*18;
+      }else if(mv==='pendulum'){
+        /* 端で減速する振り子 */
+        const s=Math.sin(b.t*0.0006);b.x=W/2+s*ampX*1.05;
+        b.y=b.targetY+Math.abs(s)*16;
+      }else if(mv==='orbit'){
+        /* 中心を回る円運動 */
+        const r=ampX*0.85,th=b.t*0.0009;
+        b.x=W/2+Math.cos(th)*r;b.y=b.targetY+18+Math.sin(th)*18;
+      }else if(mv==='chase'){
+        /* プレイヤー追尾(横方向ゆっくり) */
+        const dx=me.x-b.x;b.x+=Math.sign(dx)*Math.min(Math.abs(dx),0.06*dt);
+        b.y=b.targetY+Math.sin(b.t*0.0015)*14;
+      }else if(mv==='dash'){
+        /* 停止→突進を交互に */
+        b.dashT=(b.dashT||0)-dt;
+        if(b.dashT<=0){
+          b.dashing=!b.dashing;
+          if(b.dashing){
+            const tx=60+Math.random()*(W-120);const dx=tx-b.x;const dist=Math.max(1,Math.abs(dx));
+            b.dashVx=(dx/dist)*0.36;b.dashVy=0;b.dashT=420;
+            this.spark(b.x,b.y,b.cfg.body,8);
+          }else{
+            b.dashVx=0;b.dashT=620;
+          }
+        }
+        if(b.dashing){b.x+=b.dashVx*dt;b.x=Math.max(60,Math.min(W-60,b.x));}
+      }else if(mv==='teleport'){
+        /* 数秒に一度ワープ */
+        b.tpT=(b.tpT||0)-dt;
+        if(b.tpT<=0){
+          this.spark(b.x,b.y,b.cfg.body,18);this.ring2(b.x,b.y,'#fff');
+          b.x=80+Math.random()*(W-160);
+          b.y=b.targetY+(Math.random()*30-10);
+          this.spark(b.x,b.y,b.cfg.body,18);this.ring2(b.x,b.y,'#fff');
+          b.iframe=now+260;
+          b.tpT=1800+Math.random()*900;
+        }
+      }else{
+        b.x=W/2+Math.sin(b.t*0.0009)*ampX;
+      }
+      /* 弾幕処理(発射) */
+      if(b.iframe<=now){b.fireT-=dt*(0.7+b.phase*0.28);
         if(b.fireT<=0){const id=b.pool[b.pi];this.bossFire(b,id,diff*(1.2+b.phase*0.3));SFX.enemyShot();
-          b.shotsLeft--;if(b.shotsLeft<=0){b.pi=(b.pi+1)%b.pool.length;b.shotsLeft=this.patternShots(b.pool[b.pi]);}}}}
+          b.shotsLeft--;if(b.shotsLeft<=0){b.pi=(b.pi+1)%b.pool.length;b.shotsLeft=this.patternShots(b.pool[b.pi]);}}}
+    }
     if(!b.entering&&(b.x-this.me.x)**2+(b.y-this.me.y)**2<(b.r+this.me.r)**2)this.hit(false,3);}
   bossFire(b,id,diff){const me=this.me;const spd=0.16*Math.min(1.5,1+(diff-1)*0.25);/* 弾速をさらに抑えて見やすく避けやすく */
     const shoot=(a,sp)=>this.ebullets.push({x:b.x,y:b.y+(a>0?b.r:0),vx:Math.cos(a)*(sp||spd),vy:Math.sin(a)*(sp||spd),dmg:2,boss:true});
@@ -1405,7 +1508,36 @@ class Game{
       for(let k=0;k<7;k++){const a=k/7*Math.PI*2+base;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*spd*1.1,vy:Math.sin(a)*spd*1.1,big:true,dmg:3,boss:true});}}
     else if(id===9){b.fireT=1150/diff;const n=12+Math.floor(diff*1.5);b.spin+=0.2;
       for(let ring=0;ring<2;ring++){const sp=spd*(ring===0?1.0:0.65);/* 2リングに削減 */
-        for(let k=0;k<n;k++){const a=k/n*Math.PI*2+b.spin+ring*0.25;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,dmg:2,boss:true});}}}}
+        for(let k=0;k<n;k++){const a=k/n*Math.PI*2+b.spin+ring*0.25;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,dmg:2,boss:true});}}}
+    /* === 個性パターン id10〜19 === */
+    else if(id===10){/* neon/cyber: ネオンサーチライト(扇状ゆっくり広角) */
+      b.fireT=520;const n=9;const base=Math.PI/2+Math.sin(b.t*0.002)*0.6;
+      for(let k=0;k<n;k++){const a=base+(k-(n-1)/2)*0.18;this.ebullets.push({x:b.x,y:b.y+b.r,vx:Math.cos(a)*spd*0.9,vy:Math.sin(a)*spd*0.9,dmg:2,boss:true});}}
+    else if(id===11){/* badland/rpg: 砂礫まき散らし(下方向ランダム多数) */
+      b.fireT=420;for(let k=0;k<6;k++){const a=Math.PI/2+(Math.random()-0.5)*1.2;const sp=spd*(0.7+Math.random()*0.6);this.ebullets.push({x:b.x,y:b.y+b.r,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,dmg:2,boss:true});}}
+    else if(id===12){/* sea/abyss: 触手うねり(2本のサイン軌道弾) */
+      b.fireT=180;b.spin+=0.18;for(let s=-1;s<=1;s+=2){const a=Math.PI/2+s*0.35+Math.sin(b.spin)*0.45;this.ebullets.push({x:b.x+s*18,y:b.y+b.r*0.6,vx:Math.cos(a)*spd*0.85,vy:Math.sin(a)*spd*0.85,dmg:2,boss:true});}}
+    else if(id===13){/* body/omega: 心拍ドカン(自機狙い3連クラスタを単発で) */
+      b.fireT=820/diff;const dx=me.x-b.x,dy=me.y-b.y;const base=Math.atan2(dy,dx);
+      for(let k=-1;k<=1;k++){for(let r=0;r<3;r++){const a=base+k*0.22;const sp=spd*(0.8+r*0.18);this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,dmg:2,boss:true});}}}
+    else if(id===14){/* france/genesis: マカロン雨/雫(横方向に揺れながら落ちる) */
+      b.fireT=240;for(let k=0;k<3;k++){const x=80+Math.random()*(W-160);this.ebullets.push({x,y:-10,vx:Math.sin(b.t*0.003+k)*0.07,vy:spd*0.85,dmg:2,boss:true,wob:true});}}
+    else if(id===15){/* china/inferno: 火竜の咆哮(自機向け細長ビーム状の高速連射) */
+      b.fireT=120;const base=Math.atan2(me.y-b.y,me.x-b.x);const wob=(Math.random()-0.5)*0.18;
+      this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(base+wob)*spd*1.7,vy:Math.sin(base+wob)*spd*1.7,big:true,dmg:3,boss:true});}
+    else if(id===16){/* retrojp/void: 怨念吹雪(ワープ直後に全方位拡散) */
+      b.fireT=900/diff;const n=18+Math.floor(diff*1.5);b.spin+=0.13;
+      for(let k=0;k<n;k++){const a=k/n*Math.PI*2+b.spin;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*spd*0.7,vy:Math.sin(a)*spd*0.7,dmg:2,boss:true});}}
+    else if(id===17){/* alien/divine: 触角プローブ(自機左右にロックオン誘導風の遅い狙撃) */
+      b.fireT=300;const dx=me.x-b.x,dy=me.y-b.y;const base=Math.atan2(dy,dx);
+      for(let k=-2;k<=2;k++){if(k===0)continue;const a=base+k*0.10;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*spd*0.7,vy:Math.sin(a)*spd*0.7,dmg:2,boss:true});}}
+    else if(id===18){/* space/zero: 量子分裂(中速単発が後で割れる風→ここは2段リング) */
+      b.fireT=620/diff;const n=8;b.spin+=0.22;
+      for(let k=0;k<n;k++){const a=k/n*Math.PI*2+b.spin;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*spd*1.05,vy:Math.sin(a)*spd*1.05,dmg:2,boss:true});}
+      for(let k=0;k<n;k++){const a=k/n*Math.PI*2-b.spin+Math.PI/n;this.ebullets.push({x:b.x,y:b.y,vx:Math.cos(a)*spd*0.55,vy:Math.sin(a)*spd*0.55,dmg:2,boss:true});}}
+    else if(id===19){/* heaven/final: 天罰ピラー(左右から内側へ収束する縦弾2本) */
+      b.fireT=520/diff;const cols=4;for(let s=0;s<2;s++){const dir=s===0?1:-1;for(let k=0;k<cols;k++){const x=s===0?(40+k*40):(W-40-k*40);this.ebullets.push({x,y:b.y,vx:dir*spd*0.18,vy:spd*0.9,dmg:2,boss:true});}}}
+  }
 
   stageClear(){this.running=false;stopMusic();SFX.clear();if(spBtnEl)spBtnEl.classList.remove('ready');this._spRdy=false;
     flashEl.animate([{opacity:0},{opacity:.7},{opacity:0}],{duration:600});
@@ -1423,7 +1555,7 @@ class Game{
   nextStage(){document.getElementById('clearScreen').classList.add('hide');
     const ss=document.getElementById('shopScreen');if(ss)ss.classList.remove('show');
     if(this._lastClear){this.stage=0;this.score=0;scoreV.textContent=0;
-      this.mia=0;this.upg={hp:0,power:0,wlv:0,rate:0,speed:0};this.applyUpgrades();this.updMiaHud();
+      this.mia=0;this.upg={hp:0,power:0,wlv:0,rate:0,speed:0,recover:0};this.applyUpgrades();this.updMiaHud();
       this.powLevel=0;this.rateLevel=0;this.optCount=0;this.optTimers=[];this.special=0;this.updSpecial();this.refreshWBar();}
     else this.stage++;
     this.saveRecord();
@@ -1438,8 +1570,44 @@ class Game{
     this.checkUnlocks();
     const pb=document.getElementById('pauseBtn');if(pb)pb.style.display='none';
     if(this.score>this.best){this.best=this.score;localStorage.setItem('sky-best',this.best);}
+    /* GO後支援: mia/upgを保持したまま、ランダム強化3択を提示 */
+    this.saveMeta();
+    if(this.mia>0&&this.showReviveUpgrade())return;
     document.querySelector('#overlay .big').textContent='全機撃墜';
-    document.querySelector('#overlay .sub').innerHTML='出撃チケットも尽きた<br>ステージ '+(this.stage+1)+' / スコア <b class="g">'+this.score+'</b>　最高 '+this.best;
+    document.querySelector('#overlay .sub').innerHTML='出撃チケットも尽きた<br>ステージ '+(this.stage+1)+' / スコア <b class="g">'+this.score+'</b>　最高 '+this.best+'<br><span style="color:#ffd23d">所持 ◈ '+this.mia+' mia は次回に持ち越し</span>';
+    document.querySelector('#overlay .go').textContent='再発進';overlay.classList.remove('hide');}
+  /* === meta(mia+upg)永続化: GO跨ぎでの持ち越し用 === */
+  saveMeta(){try{localStorage.setItem('bk-meta',JSON.stringify({mia:this.mia||0,upg:this.upg||{}}));}catch(e){}}
+  loadMeta(){try{const j=localStorage.getItem('bk-meta');if(!j)return null;const o=JSON.parse(j);if(!o||typeof o!=='object')return null;return o;}catch(e){return null;}}
+  clearMeta(){try{localStorage.removeItem('bk-meta');}catch(e){}}
+  /* === ランダム強化3択(GO後) === */
+  showReviveUpgrade(){const defs=this.upgradeDefs().filter(d=>{const lv=this.upg[d.key]||0;const c=(d.cost?d.cost(lv):null);return c!=null&&c<=this.mia&&lv<d.max;});
+    if(!defs.length)return false;
+    /* ランダム3択(候補が3未満ならその数) */
+    const pool=defs.slice();const picks=[];const n=Math.min(3,pool.length);
+    for(let i=0;i<n;i++){const idx=Math.floor(Math.random()*pool.length);picks.push(pool.splice(idx,1)[0]);}
+    const list=document.getElementById('reviveUpgList');if(!list)return false;
+    let h='';for(const d of picks){const lv=this.upg[d.key]||0;const cost=d.cost(lv);
+      h+='<button class="upgBuy" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;line-height:1.3;text-align:left" onclick="game.reviveUpgPick(\''+d.key+'\')">'
+        +'<div style="font-size:14px;font-weight:900"><span style="font-size:18px">'+d.icon+'</span> '+d.name+' <span style="color:#ffd23d">Lv'+lv+'→'+(lv+1)+'</span></div>'
+        +'<div style="font-size:11px;color:#cfd7e6;font-weight:600">'+d.desc+'</div>'
+        +'<div style="font-size:11px;color:#8affd2">効果: '+d.effect(lv+1)+'　/ <span style="color:#ffd23d">◈ '+cost+' mia</span></div>'
+        +'</button>';}
+    list.innerHTML=h;
+    document.getElementById('reviveUpgInfo').innerHTML='所持 <b style="color:#ffd23d">◈ '+this.mia+' mia</b> から1つ選べる<br>選ばなくても mia と強化はそのまま次回に持ち越し';
+    const sc=document.getElementById('reviveUpgScreen');if(sc)sc.classList.remove('hide');
+    return true;}
+  reviveUpgPick(key){const def=this.upgradeDefs().find(d=>d.key===key);if(!def)return;
+    const lv=this.upg[key]||0;const cost=def.cost(lv);
+    if(cost==null||this.mia<cost||lv>=def.max)return;
+    this.mia-=cost;this.upg[key]=lv+1;this.applyUpgrades();
+    SFX.good&&SFX.good();this.saveMeta();
+    this.toast(def.icon+' '+def.name+' Lv'+(lv+1)+'! 次回へ持ち越し','#ffd23d');
+    const sc=document.getElementById('reviveUpgScreen');if(sc)sc.classList.add('hide');
+    this.over_showTitle();}
+  reviveUpgSkip(){this.saveMeta();const sc=document.getElementById('reviveUpgScreen');if(sc)sc.classList.add('hide');this.over_showTitle();}
+  over_showTitle(){document.querySelector('#overlay .big').textContent='全機撃墜';
+    document.querySelector('#overlay .sub').innerHTML='出撃チケットも尽きた<br>ステージ '+(this.stage+1)+' / スコア <b class="g">'+this.score+'</b>　最高 '+this.best+'<br><span style="color:#ffd23d">所持 ◈ '+this.mia+' mia は次回に持ち越し</span>';
     document.querySelector('#overlay .go').textContent='再発進';overlay.classList.remove('hide');}
 }
 const game=new Game();
@@ -1949,6 +2117,7 @@ Game.prototype.drawBoss=function(){const b=this.boss;const c=ctx;const cfg=b.cfg
     c.strokeStyle=ac;c.lineWidth=3;c.shadowColor=ac;c.shadowBlur=16;
     c.beginPath();c.arc(x,y,r*(1.25+ph*0.1),0,7);c.stroke();c.restore();}
   c.save();c.translate(x,y);
+  if(typeof b.alpha==='number'&&b.alpha<1)c.globalAlpha=Math.max(0,b.alpha);
   const ps=1+ph*0.08;c.scale(ps,ps);
   const TINT=['#000000','#ff6a1a','#9a0a2a'];
   let body=cfg.body;
@@ -2048,6 +2217,12 @@ function resetUnlocks(){
   game.valkUnlocked=game.magniUnlocked=game.freyUnlocked=false;game.records={};chosenChar=CHARS[0];renderCharPick();game.toast('解放と記録をリセットした','#ff8a6a');}
 
 const RELEASE_NOTES=[
+  {ver:'0.5.0',items:[
+    'ボスを個性化(専用攻撃パターンid10〜19を追加、ボス毎に異なる移動と登場演出)',
+    '回復力アップの強化項目を追加(回復アイテム取得時のHP回復量がレベル毎に+1)',
+    'ゲームオーバー後の支援を追加(所持miaから払うランダム強化3択、未選択でも次回へ持ち越し)',
+    'mia/強化レベルをlocalStorageに保存(ゲームオーバー跨ぎで引き継ぎ、一度反映したら消費)',
+  ]},
   {ver:'0.4.0',items:[
     'mia(通貨)システムを追加。撃破でmiaを獲得',
     'ステージクリア毎の強化画面を追加(HP/威力/武器Lv/連射/移動)',
