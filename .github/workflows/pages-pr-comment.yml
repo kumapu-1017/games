@@ -1,0 +1,75 @@
+name: PR Preview Comment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Detect changed game directories
+        id: detect
+        run: |
+          set -euo pipefail
+          # 変更ファイルから games/<name>/ を抽出
+          changed=$(git diff --name-only origin/main...HEAD || true)
+          echo "== changed files =="
+          echo "$changed"
+          dirs=$(echo "$changed" | awk -F/ '/^games\// {print $2}' | sort -u)
+          echo "== changed game dirs =="
+          echo "$dirs"
+          # markdown のリンクリストを作る
+          base="https://kumapu-1017.github.io/games/pr/${{ github.event.pull_request.number }}"
+          {
+            echo "links<<EOF"
+            echo "- 一覧トップ: $base/"
+            if [ -n "$dirs" ]; then
+              while IFS= read -r d; do
+                [ -z "$d" ] && continue
+                echo "- $d: $base/games/$d/"
+              done <<< "$dirs"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert preview comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LINKS: ${{ steps.detect.outputs.links }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- pr-preview-bot -->'
+          body="$MARKER
+          ## 🚀 PRプレビュー
+
+          このPRの内容を以下のURLでプレビューできるよ（次のmain pushかこのPRのpushで自動更新される）。
+          public 公開なのでURL推測リスクはゼロにできない — 仲間内に渡すときはSlack/LINE等のクローズドな経路を使ってね。
+
+          $LINKS
+
+          ---
+          *マージまたはクローズ後、次回のmain push時に自動で削除される*"
+
+          # 既存コメントがあれば編集、なければ新規
+          existing=$(gh pr view "$PR_NUMBER" --json comments \
+            --jq ".comments[] | select(.body | startswith(\"$MARKER\")) | .url" | head -1)
+          if [ -n "$existing" ]; then
+            id=$(echo "$existing" | awk -F'#issuecomment-' '{print $2}')
+            echo "Editing existing comment id=$id"
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$id" \
+              -f body="$body" >/dev/null
+          else
+            echo "Creating new comment"
+            gh pr comment "$PR_NUMBER" --body "$body"
+          fi

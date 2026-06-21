@@ -3,12 +3,15 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: read
 
 concurrency:
   group: pages
@@ -21,8 +24,71 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout main (full history for PR fetching)
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Build _site (main content + per-PR previews)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+
+          # 1) main の最新コンテンツを _site/ にコピー (workflow ディレクトリ等は除外)
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.kiro' \
+            --exclude='.claude' \
+            --exclude='.frames' \
+            --exclude='_site' \
+            --exclude='scripts' \
+            --exclude='DEPLOY.md' \
+            --exclude='CLAUDE.md' \
+            --exclude='README.md' \
+            ./ _site/
+
+          # 2) オープン中の全PRを _site/pr/{番号}/ に展開
+          echo "== オープンPR一覧 =="
+          gh pr list --state open --json number,headRefName,headRefOid > /tmp/prs.json
+          cat /tmp/prs.json
+          mkdir -p _site/pr
+
+          jq -c '.[]' /tmp/prs.json | while read -r pr; do
+            num=$(echo "$pr" | jq -r '.number')
+            ref=$(echo "$pr" | jq -r '.headRefName')
+            sha=$(echo "$pr" | jq -r '.headRefOid')
+            echo "-- PR #$num ($ref @ $sha) を _site/pr/$num/ に展開"
+            git fetch --no-tags --depth=1 origin "pull/$num/head:refs/remotes/pr/$num" || {
+              echo "WARN: PR #$num の fetch に失敗。スキップ。"
+              continue
+            }
+            mkdir -p "_site/pr/$num"
+            git --work-tree="_site/pr/$num" checkout "refs/remotes/pr/$num" -- .
+            # ワークフローや個人設定は preview からも除外
+            rm -rf "_site/pr/$num/.github" \
+                   "_site/pr/$num/.kiro" \
+                   "_site/pr/$num/.claude" \
+                   "_site/pr/$num/.frames" \
+                   "_site/pr/$num/scripts" \
+                   "_site/pr/$num/DEPLOY.md" \
+                   "_site/pr/$num/CLAUDE.md" \
+                   "_site/pr/$num/README.md" || true
+            # checkoutで汚れたインデックスをリセット (次のループのため)
+            git reset --quiet HEAD -- . || true
+          done
+
+          # 3) 念のため .nojekyll を全階層に
+          touch _site/.nojekyll
+          find _site -type d -exec sh -c 'test -f "$1/.nojekyll" || touch "$1/.nojekyll"' _ {} \;
+
+          echo "== _site 構造 =="
+          ls -la _site/
+          if [ -d _site/pr ]; then ls -la _site/pr/; fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -30,7 +96,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
