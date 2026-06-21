@@ -71,8 +71,12 @@
   button.go:active{transform:scale(.96)}
   button.ghost{background:transparent;color:#8affff;border:1.5px solid #2a5a6a;border-radius:10px;padding:9px 18px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer}
   button.ghost:active{transform:scale(.96)}
-  #helpScreen{position:absolute;inset:0;background:rgba(8,16,32,.98);border-radius:10px;display:none;flex-direction:column;z-index:30}
-  #helpScreen.show{display:flex}
+  #helpScreen,#releaseScreen{position:absolute;inset:0;background:rgba(8,16,32,.98);border-radius:10px;display:none;flex-direction:column;z-index:30}
+  #helpScreen.show,#releaseScreen.show{display:flex}
+  .relVer{font-size:14px;font-weight:800;color:#ffd23d;display:flex;align-items:center;gap:8px}
+  .relVer .newTag{font-size:9px;font-weight:800;color:#0a1428;background:#6effe0;border-radius:6px;padding:1px 6px;letter-spacing:.08em}
+  .relItem{font-size:12px;color:var(--ink);line-height:1.6;padding:3px 0 3px 14px;position:relative}
+  .relItem::before{content:'•';position:absolute;left:2px;color:#8affff}
   .helpHead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;border-bottom:1px solid #1c2c4a}
   .helpHead .ht{font-size:16px;font-weight:800;color:#ffd23d}
   .helpScroll{flex:1;overflow-y:auto;padding:10px 12px 24px;-webkit-overflow-scrolling:touch}
@@ -121,9 +125,10 @@
     <div class="sub">指で動かす。撃つのは自動。<br><b class="g">進化玉</b>で武器がLv30まで進化(毎レベル名前が変わる)。<br>撃破で<b class="g">必殺ゲージ</b>が溜まる。最大3本まで溜めて撃つほど大技に。<br>各地のキモボスを倒せ。</div>
     <div style="font-size:11px;color:#ffd23d;font-weight:800">▼ キャラを選ぶ ▼</div>
     <div id="charPick" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;padding:0 8px;max-width:480px;max-height:34vh;overflow-y:auto"></div>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
       <button class="go" onclick="game.start()">発進</button>
       <button class="ghost" onclick="openHelp()">スキル図鑑</button>
+      <button class="ghost" onclick="openRelease()">更新履歴</button>
     </div>
     <button class="ghost" style="font-size:10px;padding:6px 12px;border-color:#5a3a3a;color:#c88" onclick="resetUnlocks()">解放をリセット(友人に渡す前に鍵をかける)</button>
   </div>
@@ -148,6 +153,14 @@
     <div class="sub" id="reviveInfo"></div>
     <div style="font-size:12px;color:#ffd23d;font-weight:800">出撃チケットを使う</div>
     <button class="go" onclick="game.reviveGo()">戦線復帰</button>
+  </div>
+
+  <div id="releaseScreen">
+    <div class="helpHead">
+      <div class="ht">更新履歴</div>
+      <button class="ghost" onclick="closeRelease()">もどる</button>
+    </div>
+    <div class="helpScroll" id="releaseBody"></div>
   </div>
 
   <div id="helpScreen">
@@ -543,7 +556,7 @@ class Game{
   isMax(){return this.wlv>=30;}
   orbsNeed(lv){return 3+lv;}
 
-  start(){layout();overlay.classList.add('hide');closeHelp();
+  start(){layout();overlay.classList.add('hide');closeHelp();closeRelease();
     document.getElementById('pauseScreen').classList.add('hide');
     const pb=document.getElementById('pauseBtn');if(pb)pb.classList.add('show');
     audioInit();audioResume();
@@ -1817,6 +1830,37 @@ function resetUnlocks(){
 
 function openHelp(){document.getElementById('helpScreen').classList.add('show');helpTab('char');}
 function closeHelp(){document.getElementById('helpScreen').classList.remove('show');}
+const RELEASE_NOTES=[
+  {ver:'0.3.0',items:[
+    'プレイ中にポーズボタン（右上）を追加',
+    'ポーズ画面から「タイトルに戻る」を選択可能に',
+    'タイトル復帰時にヘッダ表示も初期化',
+    'タイトル画面に「更新履歴」ページを追加',
+  ]},
+  {ver:'0.2.1',items:[
+    'トップ画面にバージョン表示を追加',
+  ]},
+  {ver:'0.2.0',items:[
+    '武器Lv進化の手応えを刷新（進化演出/HUD毎Lv/最終形態レインボー）',
+  ]},
+  {ver:'0.1.0',items:[
+    '移植版リリース（claude.ai上で作られた原型をgit管理へ）',
+  ]},
+];
+function renderRelease(){
+  const body=document.getElementById('releaseBody');if(!body)return;
+  let html='';
+  for(let i=0;i<RELEASE_NOTES.length;i++){
+    const r=RELEASE_NOTES[i];
+    html+='<div class="card" style="flex-direction:column;align-items:stretch;gap:6px">';
+    html+='<div class="relVer">v'+r.ver+(i===0?'<span class="newTag">NEW</span>':'')+'</div>';
+    for(const it of r.items)html+='<div class="relItem">'+it+'</div>';
+    html+='</div>';
+  }
+  body.innerHTML=html;
+}
+function openRelease(){renderRelease();document.getElementById('releaseScreen').classList.add('show');}
+function closeRelease(){document.getElementById('releaseScreen').classList.remove('show');}
 function helpTab(which){['char','weap','item','stage'].forEach(k=>{const b=document.getElementById('tab'+k.charAt(0).toUpperCase()+k.slice(1));if(b)b.classList.toggle('on',k===which);});
   const body=document.getElementById('helpBody');let h='';
   const card=(ic,nm,ds,col,extra)=>'<div class="card'+(extra||'')+'"><div class="ic">'+ic+'</div><div><div class="nm" style="color:'+(col||'#eef6ff')+'">'+nm+'</div><div class="ds">'+ds+'</div></div></div>';
