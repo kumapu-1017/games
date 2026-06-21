@@ -44,6 +44,9 @@
   @keyframes lv{0%{opacity:0;transform:translateX(-50%) scale(.4) rotate(-6deg)}25%{opacity:1;transform:translateX(-50%) scale(1.15) rotate(2deg)}45%{transform:translateX(-50%) scale(1) rotate(0)}80%{opacity:1}100%{opacity:0;transform:translateX(-50%) scale(1.05)}}
   #soundBtn{position:absolute;top:8px;left:8px;z-index:18;font-size:10px;font-weight:800;color:#8affff;background:rgba(10,20,40,.6);border:1px solid #2a5a6a;border-radius:9px;padding:4px 8px;cursor:pointer}
   #soundBtn:active{transform:scale(.95)}
+  #pauseBtn{position:absolute;top:8px;right:8px;z-index:18;font-size:11px;font-weight:800;color:#8affff;background:rgba(10,20,40,.6);border:1px solid #2a5a6a;border-radius:9px;padding:4px 10px;cursor:pointer;display:none;font-family:inherit}
+  #pauseBtn.show{display:block}
+  #pauseBtn:active{transform:scale(.95)}
   #spWrap{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:19;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
   #spGauge{position:relative;width:168px;height:10px;border-radius:6px;background:rgba(10,20,40,.65);border:1px solid #2a5a6a;overflow:hidden}
   #spGauge::after{content:'';position:absolute;inset:0;pointer-events:none;
@@ -105,6 +108,7 @@
   <div id="toast"></div>
   <div id="lvup"><div class="lt" id="lvupT">WEAPON</div><div class="ln" id="lvupN">Lv.2</div></div>
   <div id="soundBtn" onclick="audioInit();audioResume();toggleSound()">♪ 音 ON</div>
+  <button id="pauseBtn" onclick="game.pauseGame()" aria-label="ポーズ">❚❚</button>
 
   <div id="spWrap">
     <button id="spBtn" onclick="game.fireSpecial()">必殺</button>
@@ -113,7 +117,7 @@
 
   <div class="panel" id="overlay">
     <div class="big">爆撃君</div>
-    <div id="verBadge">v0.2.1</div>
+    <div id="verBadge">v0.3.0</div>
     <div class="sub">指で動かす。撃つのは自動。<br><b class="g">進化玉</b>で武器がLv30まで進化(毎レベル名前が変わる)。<br>撃破で<b class="g">必殺ゲージ</b>が溜まる。最大3本まで溜めて撃つほど大技に。<br>各地のキモボスを倒せ。</div>
     <div style="font-size:11px;color:#ffd23d;font-weight:800">▼ キャラを選ぶ ▼</div>
     <div id="charPick" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;padding:0 8px;max-width:480px;max-height:34vh;overflow-y:auto"></div>
@@ -128,6 +132,15 @@
     <div class="big" style="color:#ffd23d" id="clearTitle">ステージ クリア!</div>
     <div class="sub" id="clearInfo"></div>
     <button class="go" onclick="game.nextStage()">次のステージへ</button>
+  </div>
+
+  <div class="panel hide" id="pauseScreen">
+    <div class="big" style="color:#8affff">ポーズ</div>
+    <div class="sub">休憩中だよ。準備できたら続きをどうぞ。</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="go" onclick="game.resumeGame()">続ける</button>
+      <button class="ghost" onclick="game.toTitle()">タイトルに戻る</button>
+    </div>
   </div>
 
   <div class="panel hide" id="reviveScreen">
@@ -154,7 +167,7 @@
 <div id="hint">指で<b>爆撃君</b>を動かす。撃つのは自動。<b>進化玉</b>で武器がLv30まで成長、<b>必殺</b>ゲージ満タンで必殺技、各地のキモボスを倒せ。</div>
 
 <script>
-const APP_VERSION='0.2.1';
+const APP_VERSION='0.3.0';
 const verBadgeEl=document.getElementById('verBadge');
 if(verBadgeEl)verBadgeEl.textContent='v'+APP_VERSION;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
@@ -531,6 +544,8 @@ class Game{
   orbsNeed(lv){return 3+lv;}
 
   start(){layout();overlay.classList.add('hide');closeHelp();
+    document.getElementById('pauseScreen').classList.add('hide');
+    const pb=document.getElementById('pauseBtn');if(pb)pb.classList.add('show');
     audioInit();audioResume();
     if(!this._soundInit){this._soundInit=true;soundOn=true;musicOn=true;const sb=document.getElementById('soundBtn');if(sb)sb.textContent='\u266a \u97f3 ON';}
     this.char=chosenChar;
@@ -1213,9 +1228,50 @@ class Game{
     this.tickets=Math.min(5,Math.max(this.tickets,1));this.updTickets();
     this.hp=Math.min(this.maxhp,this.hp+1);this.updHP();this.initBG();startMusic(this.stage,false);
     this.running=true;this.lastT=performance.now();requestAnimationFrame(t=>this.loop(t));}
+  isAnyOverlayOpen(){
+    const ids=['overlay','clearScreen','reviveScreen','pauseScreen'];
+    for(const id of ids){const el=document.getElementById(id);if(el&&!el.classList.contains('hide'))return true;}
+    const help=document.getElementById('helpScreen');
+    if(help&&help.classList.contains('show'))return true;
+    return false;}
+  pauseGame(){
+    if(!this.running)return;
+    const ps=document.getElementById('pauseScreen');
+    if(!ps||!ps.classList.contains('hide'))return;
+    if(this.isAnyOverlayOpen())return;
+    this.running=false;stopMusic();
+    if(spBtnEl)spBtnEl.classList.remove('ready');this._spRdy=false;
+    ps.classList.remove('hide');}
+  resumeGame(){
+    const ps=document.getElementById('pauseScreen');if(ps)ps.classList.add('hide');
+    if(this.running)return;
+    audioInit();audioResume();startMusic(this.stage,!!this.boss);
+    this.running=true;this.lastT=performance.now();
+    requestAnimationFrame(t=>this.loop(t));}
+  toTitle(){
+    this.running=false;stopMusic();
+    this.saveRecord();this.checkUnlocks();
+    if(this.score>this.best){this.best=this.score;localStorage.setItem('sky-best',this.best);}
+    if(spBtnEl){spBtnEl.classList.remove('ready');spBtnEl.style.boxShadow='';}
+    this._spRdy=false;
+    if(spFillEl)spFillEl.style.width='0%';
+    stageTag.textContent='1 ネオン街';
+    hpEl.innerHTML='&#9829;&#9829;&#9829;';
+    scoreV.textContent='0';
+    const tk=document.getElementById('ticket');if(tk)tk.textContent='';
+    wbar.innerHTML='';
+    const pb=document.getElementById('pauseBtn');if(pb)pb.classList.remove('show');
+    document.getElementById('pauseScreen').classList.add('hide');
+    document.getElementById('clearScreen').classList.add('hide');
+    document.getElementById('reviveScreen').classList.add('hide');
+    document.querySelector('#overlay .big').textContent='爆撃君';
+    document.querySelector('#overlay .sub').innerHTML='指で動かす。撃つのは自動。<br><b class="g">進化玉</b>で武器がLv30まで進化(毎レベル名前が変わる)。<br>撃破で<b class="g">必殺ゲージ</b>が溜まる。最大3本まで溜めて撃つほど大技に。<br>各地のキモボスを倒せ。';
+    document.querySelector('#overlay .go').textContent='発進';
+    overlay.classList.remove('hide');}
   over(){this.running=false;stopMusic();this.saveRecord();if(spBtnEl)spBtnEl.classList.remove('ready');this._spRdy=false;
     this.checkUnlocks();
     if(this.score>this.best){this.best=this.score;localStorage.setItem('sky-best',this.best);}
+    const pb=document.getElementById('pauseBtn');if(pb)pb.classList.remove('show');
     document.querySelector('#overlay .big').textContent='全機撃墜';
     document.querySelector('#overlay .sub').innerHTML='出撃チケットも尽きた<br>ステージ '+(this.stage+1)+' / スコア <b class="g">'+this.score+'</b>　最高 '+this.best;
     document.querySelector('#overlay .go').textContent='再発進';overlay.classList.remove('hide');}
